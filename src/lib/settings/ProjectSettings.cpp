@@ -134,7 +134,7 @@ FilePath ProjectSettings::getProjectFilePath() const
 
 void ProjectSettings::setProjectFilePath(std::wstring projectName, const FilePath& projectFileLocation)
 {
-	setFilePath(projectFileLocation.getConcatenated(L"/" + projectName + PROJECT_FILE_EXTENSION));
+	setFilePath(projectFileLocation.getConcatenated(projectName + PROJECT_FILE_EXTENSION));
 }
 
 FilePath ProjectSettings::getDependenciesDirectoryPath() const

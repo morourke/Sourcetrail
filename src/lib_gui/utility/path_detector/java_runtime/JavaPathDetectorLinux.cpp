@@ -4,15 +4,10 @@
 #include "utilityApp.h"
 #include "utilityString.h"
 
-#ifdef __x86_64__
-const wchar_t jvmLibPathRelativeToJavaExecutable[] = L"/../lib/amd64/server/libjvm.so";
-#else
-const wchar_t jvmLibPathRelativeToJavaExecutable[] = L"/../lib/i386/server/libjvm.so";
-#endif
-
-
 JavaPathDetectorLinux::JavaPathDetectorLinux(const std::string javaVersion)
-	: JavaPathDetector("Java " + javaVersion + " for Linux", javaVersion)
+	: JavaPathDetector(
+		javaVersion.empty() ? "Java for Linux" : "Java " + javaVersion + " for Linux",
+		javaVersion)
 {
 }
 
@@ -82,12 +77,27 @@ FilePath JavaPathDetectorLinux::readLink(const FilePath& path) const
 
 FilePath JavaPathDetectorLinux::getFilePathRelativeToJavaExecutable(FilePath& javaExecutablePath) const
 {
+	// JDK 9+: lib/server/libjvm.so (no architecture subdirectory)
 	FilePath p = javaExecutablePath.getParentDirectory().concatenate(
-		jvmLibPathRelativeToJavaExecutable);
+		L"/../lib/server/libjvm.so");
 	if (p.exists())
 	{
 		return p.makeCanonical();
 	}
+
+	// JDK 8 and earlier: lib/<arch>/server/libjvm.so
+#ifdef __x86_64__
+	p = javaExecutablePath.getParentDirectory().concatenate(
+		L"/../lib/amd64/server/libjvm.so");
+#else
+	p = javaExecutablePath.getParentDirectory().concatenate(
+		L"/../lib/i386/server/libjvm.so");
+#endif
+	if (p.exists())
+	{
+		return p.makeCanonical();
+	}
+
 	return FilePath();
 }
 
@@ -115,7 +125,15 @@ bool JavaPathDetectorLinux::checkVersion(const FilePath& path) const
 {
 	const utility::ProcessOutput out = utility::executeProcess(path.wstr(), {L"-version"});
 
-	return (
-		(out.exitCode == 0) &&
-		(out.output.find(utility::decodeFromUtf8(m_javaVersion)) != std::string::npos));
+	if (out.exitCode != 0)
+	{
+		return false;
+	}
+
+	if (m_javaVersion.empty())
+	{
+		return true;
+	}
+
+	return out.output.find(utility::decodeFromUtf8(m_javaVersion)) != std::string::npos;
 }

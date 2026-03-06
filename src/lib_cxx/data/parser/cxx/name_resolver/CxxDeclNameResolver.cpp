@@ -1,6 +1,7 @@
 #include "CxxDeclNameResolver.h"
 
 #include <clang/AST/ASTContext.h>
+#include <clang/Basic/Version.h>
 
 #include "CanonicalFilePathCache.h"
 #include "CxxFunctionDeclName.h"
@@ -171,8 +172,18 @@ std::unique_ptr<CxxDeclName> CxxDeclNameResolver::getDeclName(const clang::Named
 					{
 						if (templateArgumentList.get(i).isDependent())
 						{
-							llvm::PointerUnion<clang::ClassTemplateDecl*, clang::ClassTemplatePartialSpecializationDecl*>
-								pu = templateSpecialitarionDecl->getSpecializedTemplateOrPartial();
+							auto pu = templateSpecialitarionDecl->getSpecializedTemplateOrPartial();
+#if CLANG_VERSION_MAJOR >= 17
+							if (llvm::isa<clang::ClassTemplateDecl*>(pu))
+							{
+								return getDeclName(llvm::cast<clang::ClassTemplateDecl*>(pu));
+							}
+							else if (llvm::isa<clang::ClassTemplatePartialSpecializationDecl*>(pu))
+							{
+								return getDeclName(
+									llvm::cast<clang::ClassTemplatePartialSpecializationDecl*>(pu));
+							}
+#else
 							if (pu.is<clang::ClassTemplateDecl*>())
 							{
 								return getDeclName(pu.get<clang::ClassTemplateDecl*>());
@@ -182,6 +193,7 @@ std::unique_ptr<CxxDeclName> CxxDeclNameResolver::getDeclName(const clang::Named
 								return getDeclName(
 									pu.get<clang::ClassTemplatePartialSpecializationDecl*>());
 							}
+#endif
 						}
 
 						templateArguments.push_back(
@@ -262,10 +274,9 @@ std::unique_ptr<CxxDeclName> CxxDeclNameResolver::getDeclName(const clang::Named
 						clang::dyn_cast_or_null<clang::SubstTemplateTypeParmType>(
 							functionDecl->parameters()[i]->getType().getTypePtr()))
 				{
-					if (const clang::TemplateTypeParmType* templateParamType =
-							substType->getReplacedParameter())
+					if (const auto* templateParam = substType->getReplacedParameter())
 					{
-						if (templateParamType->isParameterPack())
+						if (templateParam->isParameterPack())
 						{
 							parameterTypeNames.push_back(std::make_unique<CxxTypeName>(L"..."));
 							break;
@@ -314,7 +325,11 @@ std::unique_ptr<CxxDeclName> CxxDeclNameResolver::getDeclName(const clang::Named
 			clang::isa<clang::NamespaceDecl>(declaration) &&
 			clang::dyn_cast<clang::NamespaceDecl>(declaration)->isAnonymousNamespace())
 		{
-			declaration = clang::dyn_cast<clang::NamespaceDecl>(declaration)->getOriginalNamespace();
+	#if CLANG_VERSION_MAJOR >= 17
+		declaration = clang::dyn_cast<clang::NamespaceDecl>(declaration)->getFirstDecl();
+#else
+		declaration = clang::dyn_cast<clang::NamespaceDecl>(declaration)->getOriginalNamespace();
+#endif
 			return std::make_unique<CxxDeclName>(getNameForAnonymousSymbol(L"namespace", declaration));
 		}
 		else if (clang::isa<clang::EnumDecl>(declaration) && declNameString.empty())
@@ -407,8 +422,17 @@ std::unique_ptr<CxxDeclName> CxxDeclNameResolver::getDeclName(const clang::Named
 						const clang::TemplateArgument& templateArgument = templateArgumentList.get(i);
 						if (templateArgument.isDependent())
 						{
-							llvm::PointerUnion<clang::VarTemplateDecl*, clang::VarTemplatePartialSpecializationDecl*>
-								pu = templateSpecializationDeclaration->getSpecializedTemplateOrPartial();
+							auto pu = templateSpecializationDeclaration->getSpecializedTemplateOrPartial();
+#if CLANG_VERSION_MAJOR >= 17
+							if (llvm::isa<clang::VarTemplateDecl*>(pu))
+							{
+								return getDeclName(llvm::cast<clang::VarTemplateDecl*>(pu));
+							}
+							else if (llvm::isa<clang::VarTemplatePartialSpecializationDecl*>(pu))
+							{
+								return getDeclName(
+									llvm::cast<clang::VarTemplatePartialSpecializationDecl*>(pu));
+#else
 							if (pu.is<clang::VarTemplateDecl*>())
 							{
 								return getDeclName(pu.get<clang::VarTemplateDecl*>());
@@ -417,6 +441,7 @@ std::unique_ptr<CxxDeclName> CxxDeclNameResolver::getDeclName(const clang::Named
 							{
 								return getDeclName(
 									pu.get<clang::VarTemplatePartialSpecializationDecl*>());
+#endif
 							}
 						}
 						templateParameterNames.push_back(getTemplateArgumentName(templateArgument));

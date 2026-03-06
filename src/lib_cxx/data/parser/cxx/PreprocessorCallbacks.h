@@ -5,6 +5,7 @@
 #include <set>
 
 #include <clang/Basic/SourceManager.h>
+#include <clang/Basic/Version.h>
 #include <clang/Lex/MacroInfo.h>
 #include <clang/Lex/PPCallbacks.h>
 #include <clang/Lex/Token.h>
@@ -31,6 +32,32 @@ public:
 		clang::SrcMgr::CharacteristicKind,
 		clang::FileID) override;
 
+#if CLANG_VERSION_MAJOR >= 20
+	void InclusionDirective(
+		clang::SourceLocation hashLocation,
+		const clang::Token& includeToken,
+		llvm::StringRef fileName,
+		bool isAngled,
+		clang::CharSourceRange fileNameRange,
+		clang::OptionalFileEntryRef fileEntry,
+		llvm::StringRef searchPath,
+		llvm::StringRef relativePath,
+		const clang::Module* imported,
+		bool ModuleImported,
+		clang::SrcMgr::CharacteristicKind fileType) override;
+#elif CLANG_VERSION_MAJOR >= 16
+	void InclusionDirective(
+		clang::SourceLocation hashLocation,
+		const clang::Token& includeToken,
+		llvm::StringRef fileName,
+		bool isAngled,
+		clang::CharSourceRange fileNameRange,
+		clang::OptionalFileEntryRef fileEntry,
+		llvm::StringRef searchPath,
+		llvm::StringRef relativePath,
+		const clang::Module* imported,
+		clang::SrcMgr::CharacteristicKind fileType) override;
+#else
 	void InclusionDirective(
 		clang::SourceLocation hashLocation,
 		const clang::Token& includeToken,
@@ -42,6 +69,7 @@ public:
 		llvm::StringRef relativePath,
 		const clang::Module* imported,
 		clang::SrcMgr::CharacteristicKind fileType) override;
+#endif
 
 	void MacroDefined(
 		const clang::Token& macroNameToken, const clang::MacroDirective* macroDirective) override;

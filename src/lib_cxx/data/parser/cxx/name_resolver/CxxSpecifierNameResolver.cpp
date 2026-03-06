@@ -1,6 +1,7 @@
 #include "CxxSpecifierNameResolver.h"
 
 #include <clang/AST/ASTContext.h>
+#include <clang/Basic/Version.h>
 #include <clang/AST/DeclTemplate.h>
 #include <clang/AST/PrettyPrinter.h>
 
@@ -50,7 +51,9 @@ std::unique_ptr<CxxName> CxxSpecifierNameResolver::getName(
 			return CxxDeclNameResolver(this).getName(nestedNameSpecifier->getAsNamespaceAlias());
 
 		case clang::NestedNameSpecifier::TypeSpec:
+#if CLANG_VERSION_MAJOR < 18
 		case clang::NestedNameSpecifier::TypeSpecWithTemplate:
+#endif
 			return CxxTypeName::makeUnsolvedIfNull(
 				CxxTypeNameResolver(this).getName(nestedNameSpecifier->getAsType()));
 

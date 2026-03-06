@@ -2,10 +2,42 @@
 
 #include <QMessageBox>
 #include <QRegularExpression>
-#include <boost/filesystem/path.hpp>
 
 #include "FileSystem.h"
 #include "ProjectSettings.h"
+
+namespace
+{
+bool isPortableFileName(const std::string& name)
+{
+	if (name.empty() || name.size() > 31)
+	{
+		return false;
+	}
+
+	bool hasDot = false;
+	for (size_t i = 0; i < name.size(); ++i)
+	{
+		char c = name[i];
+		bool valid = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+			(c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.';
+		if (!valid)
+		{
+			return false;
+		}
+		if (c == '.')
+		{
+			if (i == 0 || hasDot)
+			{
+				return false;
+			}
+			hasDot = true;
+		}
+	}
+
+	return true;
+}
+}	 // namespace
 
 QtProjectWizardContentProjectData::QtProjectWizardContentProjectData(
 	std::shared_ptr<ProjectSettings> projectSettings,
@@ -78,7 +110,7 @@ bool QtProjectWizardContentProjectData::check()
 		return false;
 	}
 
-	if (!boost::filesystem::portable_file_name(m_projectName->text().toStdString()))
+	if (!isPortableFileName(m_projectName->text().toStdString()))
 	{
 		QMessageBox msgBox(m_window);
 		msgBox.setText(

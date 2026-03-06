@@ -4,6 +4,7 @@
 #include <clang/AST/DeclTemplate.h>
 #include <clang/Lex/Preprocessor.h>
 #include <clang/Basic/FileManager.h>
+#include <clang/Basic/Version.h>
 
 #include "CanonicalFilePathCache.h"
 #include "FilePath.h"
@@ -78,6 +79,18 @@ SymbolKind utility::convertTagKind(const clang::TagTypeKind tagKind)
 {
 	switch (tagKind)
 	{
+#if CLANG_VERSION_MAJOR >= 19
+	case clang::TagTypeKind::Struct:
+		return SYMBOL_STRUCT;
+	case clang::TagTypeKind::Union:
+		return SYMBOL_UNION;
+	case clang::TagTypeKind::Class:
+		return SYMBOL_CLASS;
+	case clang::TagTypeKind::Enum:
+		return SYMBOL_ENUM;
+	case clang::TagTypeKind::Interface:
+		return SYMBOL_KIND_MAX;
+#else
 	case clang::TTK_Struct:
 		return SYMBOL_STRUCT;
 	case clang::TTK_Union:
@@ -88,6 +101,7 @@ SymbolKind utility::convertTagKind(const clang::TagTypeKind tagKind)
 		return SYMBOL_ENUM;
 	case clang::TTK_Interface:
 		return SYMBOL_KIND_MAX;
+#endif
 	default:
 		return SYMBOL_KIND_MAX;
 	}
@@ -129,8 +143,15 @@ SymbolKind utility::getSymbolKind(const clang::VarDecl* d)
 std::wstring utility::getFileNameOfFileEntry(const clang::FileEntry* entry)
 {
 	std::wstring fileName = L"";
+#if CLANG_VERSION_MAJOR >= 16
+	if (entry != nullptr)
+#else
 	if (entry != nullptr && entry->isValid())
+#endif
 	{
+#if CLANG_VERSION_MAJOR >= 21
+		fileName = utility::decodeFromUtf8(entry->tryGetRealPathName().str());
+#else
 		fileName = utility::decodeFromUtf8(entry->tryGetRealPathName().str());
 		if (fileName.empty())
 		{
@@ -143,6 +164,7 @@ std::wstring utility::getFileNameOfFileEntry(const clang::FileEntry* entry)
 						   .concatenate(FilePath(fileName).fileName())
 						   .wstr();
 		}
+#endif
 	}
 	return fileName;
 }
