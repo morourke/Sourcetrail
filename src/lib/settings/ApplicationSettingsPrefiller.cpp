@@ -23,7 +23,7 @@ void ApplicationSettingsPrefiller::prefillPaths(ApplicationSettings* settings)
 
 bool ApplicationSettingsPrefiller::prefillJavaRuntimePath(ApplicationSettings* settings)
 {
-	if (settings->getHasPrefilledJavaPath() && !settings->getJavaPath().empty())
+	if (settings->getHasPrefilledJavaPath())
 	{
 		return false;
 	}
@@ -76,7 +76,7 @@ bool ApplicationSettingsPrefiller::prefillJreSystemLibraryPaths(ApplicationSetti
 
 bool ApplicationSettingsPrefiller::prefillMavenExecutablePath(ApplicationSettings* settings)
 {
-	if (settings->getHasPrefilledMavenPath() && !settings->getMavenPath().empty())
+	if (settings->getHasPrefilledMavenPath())
 	{
 		return false;
 	}

@@ -1,5 +1,7 @@
 #include "utilityCxxHeaderDetection.h"
 
+#include <map>
+
 #include <QSettings>
 #include <QSysInfo>
 
@@ -11,10 +13,18 @@ namespace utility
 {
 std::vector<std::wstring> getCxxHeaderPaths(const std::string& compilerName)
 {
+	static std::map<std::string, std::vector<std::wstring>> s_cache;
+
+	auto it = s_cache.find(compilerName);
+	if (it != s_cache.end())
+	{
+		return it->second;
+	}
+
 	std::vector<std::wstring> paths;
 
 	const utility::ProcessOutput out = utility::executeProcess(
-		utility::decodeFromUtf8(compilerName), {L"-x", L"c++", L"-v", L"-E", L"/dev/null"});
+		utility::decodeFromUtf8(compilerName), {L"-x", L"c++", L"-v", L"-E", L"/dev/null"}, FilePath(), false, 10000);
 	if (out.exitCode == 0)
 	{
 		std::wstring standardHeaders = utility::substrBetween<std::wstring>(
@@ -29,6 +39,7 @@ std::vector<std::wstring> getCxxHeaderPaths(const std::string& compilerName)
 		}
 	}
 
+	s_cache[compilerName] = paths;
 	return paths;
 }
 
