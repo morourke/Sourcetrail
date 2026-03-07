@@ -86,6 +86,7 @@ JavaParser::JavaParser(
 
 JavaParser::~JavaParser()
 {
+	std::lock_guard<std::mutex> lock(s_parsersMutex);
 	s_parsers.erase(m_id);
 }
 
@@ -142,7 +143,7 @@ void JavaParser::buildIndex(
 	}
 }
 
-int JavaParser::s_nextParserId = 0;
+std::atomic<int> JavaParser::s_nextParserId = 0;
 
 std::map<int, JavaParser*> JavaParser::s_parsers;
 

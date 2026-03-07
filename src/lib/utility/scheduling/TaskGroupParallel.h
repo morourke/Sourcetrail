@@ -1,6 +1,7 @@
 #ifndef TASK_GROUP_PARALLEL_H
 #define TASK_GROUP_PARALLEL_H
 
+#include <atomic>
 #include <map>
 #include <mutex>
 #include <thread>
@@ -21,7 +22,7 @@ private:
 		TaskInfo(std::shared_ptr<TaskRunner> taskRunner): taskRunner(taskRunner), active(false) {}
 		std::shared_ptr<TaskRunner> taskRunner;
 		std::shared_ptr<std::thread> thread;
-		volatile bool active;
+		std::atomic<bool> active;
 	};
 
 	void doEnter(std::shared_ptr<Blackboard> blackboard) override;
@@ -39,8 +40,8 @@ private:
 	std::vector<std::shared_ptr<TaskInfo>> m_tasks;
 	bool m_needsToStartThreads;
 
-	volatile bool m_taskFailed;
-	volatile int m_activeTaskCount;
+	std::atomic<bool> m_taskFailed;
+	std::atomic<int> m_activeTaskCount;
 	mutable std::shared_ptr<std::mutex> m_activeTaskCountMutex;
 };
 
