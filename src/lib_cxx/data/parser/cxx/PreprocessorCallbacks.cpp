@@ -52,6 +52,42 @@ void PreprocessorCallbacks::FileChanged(
 	}
 }
 
+#if CLANG_VERSION_MAJOR >= 20
+void PreprocessorCallbacks::InclusionDirective(
+	clang::SourceLocation hashLocation,
+	const clang::Token& includeToken,
+	llvm::StringRef fileName,
+	bool isAngled,
+	clang::CharSourceRange fileNameRange,
+	clang::OptionalFileEntryRef fileEntry,
+	llvm::StringRef searchPath,
+	llvm::StringRef relativePath,
+	const clang::Module* imported,
+	bool ModuleImported,
+	clang::SrcMgr::CharacteristicKind fileType)
+{
+	if (m_currentFileSymbolId && fileEntry)
+	{
+		const FilePath includedFilePath = m_canonicalFilePathCache->getCanonicalFilePath(
+			&fileEntry->getFileEntry());
+#elif CLANG_VERSION_MAJOR >= 16
+void PreprocessorCallbacks::InclusionDirective(
+	clang::SourceLocation hashLocation,
+	const clang::Token& includeToken,
+	llvm::StringRef fileName,
+	bool isAngled,
+	clang::CharSourceRange fileNameRange,
+	clang::OptionalFileEntryRef fileEntry,
+	llvm::StringRef searchPath,
+	llvm::StringRef relativePath,
+	const clang::Module* imported,
+	clang::SrcMgr::CharacteristicKind fileType)
+{
+	if (m_currentFileSymbolId && fileEntry)
+	{
+		const FilePath includedFilePath = m_canonicalFilePathCache->getCanonicalFilePath(
+			&fileEntry->getFileEntry());
+#else
 void PreprocessorCallbacks::InclusionDirective(
 	clang::SourceLocation hashLocation,
 	const clang::Token& includeToken,
@@ -67,6 +103,7 @@ void PreprocessorCallbacks::InclusionDirective(
 	if (m_currentFileSymbolId && fileEntry)
 	{
 		const FilePath includedFilePath = m_canonicalFilePathCache->getCanonicalFilePath(fileEntry);
+#endif
 		const NameHierarchy includedFileNameHierarchy(includedFilePath.wstr(), NAME_DELIMITER_FILE);
 
 		Id includedFileSymbolId = m_client->recordSymbol(includedFileNameHierarchy);

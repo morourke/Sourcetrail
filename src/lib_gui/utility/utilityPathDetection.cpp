@@ -38,7 +38,7 @@ std::shared_ptr<CombinedPathDetector> utility::getJavaRuntimePathDetector()
 		combinedDetector->addDetector(std::make_shared<JavaPathDetectorMac>("1.8"));
 		break;
 	case OS_LINUX:
-		combinedDetector->addDetector(std::make_shared<JavaPathDetectorLinux>("1.8"));
+		combinedDetector->addDetector(std::make_shared<JavaPathDetectorLinux>(""));
 		break;
 	default:
 		LOG_WARNING("No suitable Java Runtime path detector found");
@@ -64,7 +64,7 @@ std::shared_ptr<CombinedPathDetector> utility::getJreSystemLibraryPathsDetector(
 		combinedDetector->addDetector(std::make_shared<JreSystemLibraryPathDetectorMac>("1.8"));
 		break;
 	case OS_LINUX:
-		combinedDetector->addDetector(std::make_shared<JreSystemLibraryPathDetectorLinux>("1.8"));
+		combinedDetector->addDetector(std::make_shared<JreSystemLibraryPathDetectorLinux>(""));
 		break;
 	default:
 		LOG_WARNING("No suitable JRE system library path detector found");

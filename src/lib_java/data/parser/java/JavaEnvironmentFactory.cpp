@@ -1,6 +1,7 @@
 #include "JavaEnvironmentFactory.h"
 
 #include <cstdlib>
+#include <vector>
 
 #include <jni.h>
 
@@ -47,7 +48,16 @@ void JavaEnvironmentFactory::createInstance(std::string classPath, std::string& 
 
 	s_classPath = classPath;
 
-	const int optionCount = 2;
+	// --add-opens flags needed for JDK 16+ strong encapsulation (Eclipse JDT uses reflection)
+	const std::vector<std::string> extraOptions = {
+		"--add-opens=java.base/java.lang=ALL-UNNAMED",
+		"--add-opens=java.base/java.io=ALL-UNNAMED",
+		"--add-opens=java.base/java.util=ALL-UNNAMED",
+	};
+
+	const int baseOptionCount = 2;
+	const int extraOptionCount = static_cast<int>(extraOptions.size());
+	const int optionCount = baseOptionCount + extraOptionCount;
 
 	JavaVM* jvm = nullptr;	  // Pointer to the JVM (Java Virtual Machine)
 	JNIEnv* env = nullptr;	  // Pointer to native interface
@@ -57,6 +67,10 @@ void JavaEnvironmentFactory::createInstance(std::string classPath, std::string& 
 	std::string classPathOption = "-Djava.class.path=" + classPath;
 	options[0].optionString = const_cast<char*>(classPathOption.c_str());
 	options[1].optionString = const_cast<char*>("-Xms64m");
+	for (int i = 0; i < extraOptionCount; i++)
+	{
+		options[baseOptionCount + i].optionString = const_cast<char*>(extraOptions[i].c_str());
+	}
 
 	// use these options to enable profiling in VisualVM
 	// options[2].optionString = const_cast<char*>("-Dcom.sun.management.jmxremote");
@@ -69,7 +83,7 @@ void JavaEnvironmentFactory::createInstance(std::string classPath, std::string& 
 	vm_args.version = JNI_VERSION_1_8;
 	vm_args.nOptions = optionCount;
 	vm_args.options = options;
-	vm_args.ignoreUnrecognized = false;	   // invalid options make the JVM init fail
+	vm_args.ignoreUnrecognized = true;	  // ignore flags unknown to older JVMs (e.g. --add-opens on JDK 8)
 
 	jint rc = createInstanceFunction(&jvm, (void**)&env, &vm_args);
 

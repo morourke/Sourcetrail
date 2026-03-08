@@ -2,6 +2,7 @@
 #define CXX_DIAGNOSTIC_CONSUMER
 
 #include "FilePath.h"
+#include <clang/Basic/Version.h>
 #include <clang/Frontend/TextDiagnosticPrinter.h>
 
 class CanonicalFilePathCache;
@@ -10,6 +11,15 @@ class ParserClient;
 class CxxDiagnosticConsumer: public clang::TextDiagnosticPrinter
 {
 public:
+#if CLANG_VERSION_MAJOR >= 20
+	CxxDiagnosticConsumer(
+		clang::raw_ostream& os,
+		clang::DiagnosticOptions& diags,
+		std::shared_ptr<ParserClient> client,
+		std::shared_ptr<CanonicalFilePathCache> canonicalFilePathCache,
+		const FilePath& sourceFilePath,
+		bool useLogging = true);
+#else
 	CxxDiagnosticConsumer(
 		clang::raw_ostream& os,
 		clang::DiagnosticOptions* diags,
@@ -17,6 +27,7 @@ public:
 		std::shared_ptr<CanonicalFilePathCache> canonicalFilePathCache,
 		const FilePath& sourceFilePath,
 		bool useLogging = true);
+#endif
 
 	void BeginSourceFile(
 		const clang::LangOptions& langOptions, const clang::Preprocessor* preProcessor) override;

@@ -23,7 +23,7 @@ endfunction(AddLicense)
 ReadLicense(${CMAKE_SOURCE_DIR}/LICENSE.txt Sourcetrail_license)
 set(LICENSE_APP "LicenseInfo(\"Sourcetrail\", \"${VERSION_STRING}\", \"https://github.com/CoatiSoftware/Sourcetrail\", Sourcetrail_license)")
 
-AddLicense("Boost" "1.68" "http://www.boost.org" "${LICENSEFOLDER}/license_boost.txt")
+AddLicense("Boost" "1.89" "http://www.boost.org" "${LICENSEFOLDER}/license_boost.txt")
 AddLicense("catch" "2.5.0" "https://github.com/catchorg/Catch2" "${LICENSEFOLDER}/license_catch.txt")
 AddLicense("Clang" "8.0.1" "http://clang.llvm.org/" "${LICENSEFOLDER}/license_clang.txt")
 AddLicense("CppSQLite" "3.2" "http://www.codeproject.com/Articles/6343/CppSQLite-C-Wrapper-for-SQLite" "${LICENSEFOLDER}/license_cpp_sqlite.txt")

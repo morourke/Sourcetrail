@@ -2,6 +2,7 @@
 
 #include <clang/AST/ASTContext.h>
 #include <clang/Basic/FileManager.h>
+#include <clang/Basic/Version.h>
 #include "utilityClang.h"
 #include "utilityString.h"
 
@@ -32,7 +33,11 @@ FilePath CanonicalFilePathCache::getCanonicalFilePath(
 	FilePath filePath;
 
 	const clang::FileEntry* fileEntry = sourceManager.getFileEntryForID(fileId);
+#if CLANG_VERSION_MAJOR >= 16
+	if (fileEntry != nullptr)
+#else
 	if (fileEntry != nullptr && fileEntry->isValid())
+#endif
 	{
 		filePath = getCanonicalFilePath(fileEntry);
 		m_fileIdMap.emplace(fileId, filePath);
@@ -126,7 +131,11 @@ FilePath CanonicalFilePathCache::getDeclarationFilePath(const clang::Decl* decla
 	const clang::SourceManager& sourceManager = declaration->getASTContext().getSourceManager();
 	const clang::FileID fileId = sourceManager.getFileID(declaration->getBeginLoc());
 	const clang::FileEntry* fileEntry = sourceManager.getFileEntryForID(fileId);
+#if CLANG_VERSION_MAJOR >= 16
+	if (fileEntry != nullptr)
+#else
 	if (fileEntry != nullptr && fileEntry->isValid())
+#endif
 	{
 		return getCanonicalFilePath(fileId, sourceManager);
 	}

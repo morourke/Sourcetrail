@@ -1,5 +1,6 @@
 #include "utilitySourceGroupCxx.h"
 
+#include <clang/Basic/Version.h>
 #include <clang/Tooling/JSONCompilationDatabase.h>
 
 #include "CanonicalFilePathCache.h"
@@ -89,10 +90,16 @@ std::shared_ptr<Task> createBuildPchTask(
 				compilationDatabase, {utility::encodeToUtf8(pchInputFilePath.wstr())});
 			GeneratePCHAction* action = new GeneratePCHAction(client, canonicalFilePathCache);
 
+#if CLANG_VERSION_MAJOR >= 20
+			clang::DiagnosticOptions options;
+			CxxDiagnosticConsumer diagnostics(
+				llvm::errs(), options, client, canonicalFilePathCache, pchInputFilePath, true);
+#else
 			llvm::IntrusiveRefCntPtr<clang::DiagnosticOptions> options =
 				new clang::DiagnosticOptions();
 			CxxDiagnosticConsumer diagnostics(
 				llvm::errs(), &*options, client, canonicalFilePathCache, pchInputFilePath, true);
+#endif
 
 			tool.setDiagnosticConsumer(&diagnostics);
 			tool.clearArgumentsAdjusters();

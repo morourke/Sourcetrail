@@ -1,6 +1,7 @@
 #include "CxxTypeNameResolver.h"
 
 #include <clang/AST/ASTContext.h>
+#include <clang/Basic/Version.h>
 #include <clang/AST/DeclTemplate.h>
 #include <clang/AST/PrettyPrinter.h>
 
@@ -160,6 +161,20 @@ std::unique_ptr<CxxTypeName> CxxTypeNameResolver::getName(const clang::Type* typ
 					resolver.ignoreContextDecl(templateSpecializationType->getTemplateName()
 												   .getAsTemplateDecl()
 												   ->getTemplatedDecl());
+#if CLANG_VERSION_MAJOR >= 18
+					for (const auto& arg : templateSpecializationType->template_arguments())
+					{
+						if (arg.isDependent())
+						{
+							return std::make_unique<CxxTypeName>(
+								declName->getName(),
+								declName->getTemplateParameterNames(),
+								declName->getParent());
+						}
+						templateArguments.push_back(
+							resolver.getTemplateArgumentName(arg));
+					}
+#else
 					for (unsigned i = 0; i < templateSpecializationType->getNumArgs(); i++)
 					{
 						if (templateSpecializationType->getArg(i).isDependent())
@@ -172,6 +187,7 @@ std::unique_ptr<CxxTypeName> CxxTypeNameResolver::getName(const clang::Type* typ
 						templateArguments.push_back(
 							resolver.getTemplateArgumentName(templateSpecializationType->getArg(i)));
 					}
+#endif
 
 					return std::make_unique<CxxTypeName>(
 						declName->getName(), std::move(templateArguments), declName->getParent());
@@ -213,6 +229,24 @@ std::unique_ptr<CxxTypeName> CxxTypeNameResolver::getName(const clang::Type* typ
 		{
 			const clang::DependentTemplateSpecializationType* dependentType =
 				clang::dyn_cast<clang::DependentTemplateSpecializationType>(type);
+
+#if CLANG_VERSION_MAJOR >= 21
+			std::unique_ptr<CxxName> specifierName = CxxSpecifierNameResolver(this).getName(
+				dependentType->getDependentTemplateName().getQualifier());
+
+			std::vector<std::wstring> templateArguments;
+			CxxTemplateArgumentNameResolver resolver(this);
+			for (const auto& arg : dependentType->template_arguments())
+			{
+				templateArguments.push_back(
+					resolver.getTemplateArgumentName(arg));
+			}
+
+			return std::make_unique<CxxTypeName>(
+				utility::decodeFromUtf8(dependentType->getDependentTemplateName().getName().getIdentifier()->getName().str()),
+				std::move(templateArguments),
+				std::move(specifierName));
+#else
 			std::unique_ptr<CxxName> specifierName = CxxSpecifierNameResolver(this).getName(
 				dependentType->getQualifier());
 
@@ -228,6 +262,7 @@ std::unique_ptr<CxxTypeName> CxxTypeNameResolver::getName(const clang::Type* typ
 				utility::decodeFromUtf8(dependentType->getIdentifier()->getName().str()),
 				std::move(templateArguments),
 				std::move(specifierName));
+#endif
 		}
 		case clang::Type::PackExpansion:
 		{

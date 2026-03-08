@@ -8,7 +8,11 @@
 #include <clang/Basic/Version.h>
 #include <llvm/Option/ArgList.h>
 #include <llvm/Support/TargetSelect.h>
+#if CLANG_VERSION_MAJOR >= 16
+#include <llvm/TargetParser/Host.h>
+#else
 #include <llvm/Support/Host.h>
+#endif
 
 #include "CxxCompilationDatabaseSingle.h"
 #include "CxxDiagnosticConsumer.h"
@@ -51,6 +55,37 @@ ClangInvocationInfo ClangInvocationInfo::getClangInvocationString(
 		for (const std::string& Str: CommandLine)
 			Argv.push_back(Str.c_str());
 		const char* const BinaryName = Argv[0];
+#if CLANG_VERSION_MAJOR >= 20
+		clang::DiagnosticOptions DiagOpts;
+		unsigned MissingArgIndex, MissingArgCount;
+		const llvm::opt::OptTable& Opts = clang::driver::getDriverOptTable();
+		llvm::opt::InputArgList ParsedArgs = Opts.ParseArgs(
+			clang::ArrayRef<const char*>(Argv).slice(1), MissingArgIndex, MissingArgCount);
+		clang::ParseDiagnosticArgs(DiagOpts, ParsedArgs);
+
+		llvm::raw_string_ostream diagnosticsStream(invocationInfo.errors);
+		clang::TextDiagnosticPrinter DiagnosticPrinter(diagnosticsStream, DiagOpts);
+		clang::DiagnosticsEngine Diagnostics(
+			clang::IntrusiveRefCntPtr<clang::DiagnosticIDs>(new clang::DiagnosticIDs()),
+			DiagOpts,
+			&DiagnosticPrinter,
+			false);
+#elif CLANG_VERSION_MAJOR >= 18
+		clang::IntrusiveRefCntPtr<clang::DiagnosticOptions> DiagOpts = new clang::DiagnosticOptions();
+		unsigned MissingArgIndex, MissingArgCount;
+		const llvm::opt::OptTable& Opts = clang::driver::getDriverOptTable();
+		llvm::opt::InputArgList ParsedArgs = Opts.ParseArgs(
+			clang::ArrayRef<const char*>(Argv).slice(1), MissingArgIndex, MissingArgCount);
+		clang::ParseDiagnosticArgs(*DiagOpts, ParsedArgs);
+
+		llvm::raw_string_ostream diagnosticsStream(invocationInfo.errors);
+		clang::TextDiagnosticPrinter DiagnosticPrinter(diagnosticsStream, &*DiagOpts);
+		clang::DiagnosticsEngine Diagnostics(
+			clang::IntrusiveRefCntPtr<clang::DiagnosticIDs>(new clang::DiagnosticIDs()),
+			&*DiagOpts,
+			&DiagnosticPrinter,
+			false);
+#else
 		clang::IntrusiveRefCntPtr<clang::DiagnosticOptions> DiagOpts = new clang::DiagnosticOptions();
 		unsigned MissingArgIndex, MissingArgCount;
 		llvm::opt::OptTable Opts = clang::driver::getDriverOptTable();
@@ -65,6 +100,7 @@ ClangInvocationInfo ClangInvocationInfo::getClangInvocationString(
 			&*DiagOpts,
 			&DiagnosticPrinter,
 			false);
+#endif
 
 		llvm::IntrusiveRefCntPtr<clang::FileManager> Files(
 			new clang::FileManager(clang::FileSystemOptions()));
@@ -73,8 +109,13 @@ ClangInvocationInfo ClangInvocationInfo::getClangInvocationString(
 			newDriver(&Diagnostics, BinaryName, &Files->getVirtualFileSystem()));
 		// Since the input might only be virtual, don't check whether it exists.
 		Driver->setCheckInputsExist(false);
+#if CLANG_VERSION_MAJOR >= 16
+		const std::unique_ptr<clang::driver::Compilation> Compilation(
+			Driver->BuildCompilation(Argv));
+#else
 		const std::unique_ptr<clang::driver::Compilation> Compilation(
 			Driver->BuildCompilation(llvm::makeArrayRef(Argv)));
+#endif
 
 		if (Compilation)
 		{

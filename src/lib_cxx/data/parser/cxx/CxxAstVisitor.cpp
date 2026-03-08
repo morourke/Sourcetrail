@@ -1,6 +1,7 @@
 #include "CxxAstVisitor.h"
 
 #include <clang/AST/ASTContext.h>
+#include <clang/Basic/Version.h>
 #include <clang/Lex/Preprocessor.h>
 
 #include "CanonicalFilePathCache.h"
@@ -270,7 +271,11 @@ bool CxxAstVisitor::TraverseTemplateTypeParmDecl(clang::TemplateTypeParmDecl* d)
 	if (d->hasDefaultArgument() && !d->defaultArgumentWasInherited())
 	{
 		FOREACH_COMPONENT(beginTraverseTemplateDefaultArgumentLoc());
+#if CLANG_VERSION_MAJOR >= 18
+		TraverseTypeLoc(d->getDefaultArgument().getTypeSourceInfo()->getTypeLoc());
+#else
 		TraverseTypeLoc(d->getDefaultArgumentInfo()->getTypeLoc());
+#endif
 		FOREACH_COMPONENT(endTraverseTemplateDefaultArgumentLoc());
 	}
 
@@ -396,6 +401,18 @@ bool CxxAstVisitor::TraverseClassTemplateSpecializationDecl(clang::ClassTemplate
 
 	if (ReturnValue)
 	{
+#if CLANG_VERSION_MAJOR >= 18
+		if (const clang::ASTTemplateArgumentListInfo* ArgsAsWritten = D->getTemplateArgsAsWritten())
+		{
+			for (const auto& ArgLoc : ArgsAsWritten->arguments())
+			{
+				if (!TraverseTemplateArgumentLoc(ArgLoc))
+				{
+					ReturnValue = false;
+				}
+			}
+		}
+#else
 		if (clang::TypeSourceInfo* TSI = D->getTypeAsWritten())
 		{
 			clang::TypeLoc::TypeLocClass ccccc = TSI->getTypeLoc().getTypeLocClass();
@@ -412,6 +429,7 @@ bool CxxAstVisitor::TraverseClassTemplateSpecializationDecl(clang::ClassTemplate
 				}
 			}
 		}
+#endif
 	}
 
 	if (ReturnValue)

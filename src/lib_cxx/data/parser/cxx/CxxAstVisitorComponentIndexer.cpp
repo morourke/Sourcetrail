@@ -1,6 +1,7 @@
 #include "CxxAstVisitorComponentIndexer.h"
 
 #include <clang/AST/ASTContext.h>
+#include <clang/Basic/Version.h>
 #include <clang/Basic/SourceLocation.h>
 #include <clang/Basic/SourceManager.h>
 #include <clang/Lex/Preprocessor.h>
@@ -56,7 +57,9 @@ void CxxAstVisitorComponentIndexer::beginTraverseNestedNameSpecifierLoc(
 	case clang::NestedNameSpecifier::Super:
 		break;
 	case clang::NestedNameSpecifier::TypeSpec:
+#if CLANG_VERSION_MAJOR < 18
 	case clang::NestedNameSpecifier::TypeSpecWithTemplate:
+#endif
 		if (const clang::CXXRecordDecl* recordDecl = loc.getNestedNameSpecifier()->getAsRecordDecl())
 		{
 			SymbolKind symbolKind = SYMBOL_KIND_MAX;
@@ -164,7 +167,12 @@ void CxxAstVisitorComponentIndexer::beginTraverseLambdaCapture(
 {
 	if ((!lambdaExpr->isInitCapture(capture)) && (capture->capturesVariable()))
 	{
+#if CLANG_VERSION_MAJOR >= 18
+		const auto* d = clang::dyn_cast<clang::VarDecl>(capture->getCapturedVar());
+		if (!d) return;
+#else
 		clang::VarDecl* d = capture->getCapturedVar();
+#endif
 		if (utility::isLocalVariable(d) || utility::isParameter(d))
 		{
 			if (!d->getNameAsString().empty())	  // don't record anonymous parameters
@@ -218,8 +226,17 @@ void CxxAstVisitorComponentIndexer::visitClassTemplateSpecializationDecl(
 	{
 		clang::CXXRecordDecl* specializedFromDecl = nullptr;
 
-		llvm::PointerUnion<clang::ClassTemplateDecl*, clang::ClassTemplatePartialSpecializationDecl*> pu =
-			d->getSpecializedTemplateOrPartial();
+		auto pu = d->getSpecializedTemplateOrPartial();
+#if CLANG_VERSION_MAJOR >= 17
+		if (llvm::isa<clang::ClassTemplateDecl*>(pu))
+		{
+			specializedFromDecl = llvm::cast<clang::ClassTemplateDecl*>(pu)->getTemplatedDecl();
+		}
+		else if (llvm::isa<clang::ClassTemplatePartialSpecializationDecl*>(pu))
+		{
+			specializedFromDecl = llvm::cast<clang::ClassTemplatePartialSpecializationDecl*>(pu);
+		}
+#else
 		if (pu.is<clang::ClassTemplateDecl*>())
 		{
 			specializedFromDecl = pu.get<clang::ClassTemplateDecl*>()->getTemplatedDecl();
@@ -228,6 +245,7 @@ void CxxAstVisitorComponentIndexer::visitClassTemplateSpecializationDecl(
 		{
 			specializedFromDecl = pu.get<clang::ClassTemplatePartialSpecializationDecl*>();
 		}
+#endif
 
 		m_client->recordReference(
 			REFERENCE_TEMPLATE_SPECIALIZATION,
@@ -275,8 +293,17 @@ void CxxAstVisitorComponentIndexer::visitVarTemplateSpecializationDecl(
 		clang::NamedDecl* specializedFromDecl = nullptr;
 
 		// todo: use context and childcontext!!
-		llvm::PointerUnion<clang::VarTemplateDecl*, clang::VarTemplatePartialSpecializationDecl*> pu =
-			d->getSpecializedTemplateOrPartial();
+		auto pu = d->getSpecializedTemplateOrPartial();
+#if CLANG_VERSION_MAJOR >= 17
+		if (llvm::isa<clang::VarTemplateDecl*>(pu))
+		{
+			specializedFromDecl = llvm::cast<clang::VarTemplateDecl*>(pu);
+		}
+		else if (llvm::isa<clang::VarTemplatePartialSpecializationDecl*>(pu))
+		{
+			specializedFromDecl = llvm::cast<clang::VarTemplatePartialSpecializationDecl*>(pu);
+		}
+#else
 		if (pu.is<clang::VarTemplateDecl*>())
 		{
 			specializedFromDecl = pu.get<clang::VarTemplateDecl*>();
@@ -285,6 +312,7 @@ void CxxAstVisitorComponentIndexer::visitVarTemplateSpecializationDecl(
 		{
 			specializedFromDecl = pu.get<clang::VarTemplatePartialSpecializationDecl*>();
 		}
+#endif
 
 		m_client->recordReference(
 			REFERENCE_TEMPLATE_SPECIALIZATION,
@@ -915,6 +943,20 @@ ParseLocation CxxAstVisitorComponentIndexer::getSignatureLocation(clang::Functio
 
 		while (sm.isBeforeInTranslationUnit(endLoc, signatureRange.getEnd()))
 		{
+#if CLANG_VERSION_MAJOR >= 16
+			std::optional<clang::Token> token = clang::Lexer::findNextToken(endLoc, sm, opts);
+			if (token.has_value())
+			{
+				const clang::tok::TokenKind tokenKind = token->getKind();
+				if (tokenKind == clang::tok::l_brace || tokenKind == clang::tok::colon)
+				{
+					signatureRange.setEnd(endLoc);
+					return getParseLocation(signatureRange);
+				}
+
+				clang::SourceLocation nextEndLoc = token->getLocation();
+				if (nextEndLoc == endLoc)
+#else
 			llvm::Optional<clang::Token> token = clang::Lexer::findNextToken(endLoc, sm, opts);
 			if (token.hasValue())
 			{
@@ -927,6 +969,7 @@ ParseLocation CxxAstVisitorComponentIndexer::getSignatureLocation(clang::Functio
 
 				clang::SourceLocation nextEndLoc = token.getValue().getLocation();
 				if (nextEndLoc == endLoc)
+#endif
 				{
 					return ParseLocation();
 				}

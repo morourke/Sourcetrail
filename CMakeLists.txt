@@ -149,6 +149,8 @@ if (BUILD_CXX_LANGUAGE_PACKAGE)
 			set (_CLANG_HEADERS_SEARCH_LIST
 				"${LLVM_BINARY_DIR}/${LLVM_CONFIGURATION_TYPE}/lib/clang/${LLVM_VERSION}/include"
 				"${LLVM_BINARY_DIR}/${LLVM_CONFIGURATION_TYPE}/lib64/clang/${LLVM_VERSION}/include"
+				"${LLVM_BINARY_DIR}/${LLVM_CONFIGURATION_TYPE}/lib/clang/${LLVM_VERSION_MAJOR}/include"
+				"${LLVM_BINARY_DIR}/${LLVM_CONFIGURATION_TYPE}/lib64/clang/${LLVM_VERSION_MAJOR}/include"
 			)
 			foreach (_CLANG_HEADER_PATH ${_CLANG_HEADERS_SEARCH_LIST})
 				if (EXISTS ${_CLANG_HEADER_PATH})
@@ -183,7 +185,7 @@ set(Boost_USE_MULTITHREAD ON)
 set(Boost_USE_STATIC_LIBS ON CACHE BOOL "Set to ON to force the use of the static libraries.")
 set(Boost_USE_STATIC_RUNTIME OFF)
 
-find_package(Boost 1.67 COMPONENTS system program_options filesystem date_time REQUIRED)
+find_package(Boost 1.89 COMPONENTS program_options date_time locale filesystem REQUIRED)
 
 
 # Qt ---------------------------------------------------------------------------
@@ -365,9 +367,6 @@ configure_file(
 
 if (BUILD_CXX_LANGUAGE_PACKAGE)
 
-	set(CAPTURED_CMAKE_CXX_STANDARD ${CMAKE_CXX_STANDARD})
-	set(CMAKE_CXX_STANDARD 14)
-	
 	add_library(${LIB_CXX_PROJECT_NAME} ${LIB_CXX_FILES})
 
 	create_source_groups(${LIB_CXX_FILES})
@@ -439,7 +438,6 @@ if (BUILD_CXX_LANGUAGE_PACKAGE)
 		target_link_libraries(${LIB_CXX_PROJECT_NAME} version)
 	endif()
 
-	set(CMAKE_CXX_STANDARD ${CAPTURED_CMAKE_CXX_STANDARD})
 else()
 
 	message(STATUS "Building the Cxx indexer will be skipped. You can enable building this target by setting 'BUILD_CXX_LANGUAGE_PACKAGE' to 'ON'.")

@@ -1,15 +1,61 @@
 #include "FilePath.h"
 
+#include <algorithm>
 #include <regex>
-
-#include <boost/filesystem.hpp>
-#include <boost/filesystem/path.hpp>
 
 #include "logging.h"
 #include "utilityString.h"
 
+namespace
+{
+bool isValidWindowsName(const std::string& name)
+{
+	if (name.empty())
+	{
+		return false;
+	}
+
+	// Check for invalid characters
+	const std::string invalidChars = "<>:\"/\\|?*";
+	for (char c: name)
+	{
+		if (invalidChars.find(c) != std::string::npos || c < 32)
+		{
+			return false;
+		}
+	}
+
+	// Check for trailing spaces or periods
+	if (name.back() == ' ' || name.back() == '.')
+	{
+		return false;
+	}
+
+	// Check for DOS reserved names
+	std::string upper = name;
+	std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+	// Strip extension for comparison
+	std::string baseName = upper.substr(0, upper.find('.'));
+
+	static const std::vector<std::string> reserved = {
+		"CON", "PRN", "AUX", "NUL",
+		"COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+		"LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"};
+
+	for (const std::string& r: reserved)
+	{
+		if (baseName == r)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+}	 // namespace
+
 FilePath::FilePath()
-	: m_path(std::make_unique<boost::filesystem::path>(""))
+	: m_path(std::make_unique<std::filesystem::path>(""))
 	, m_exists(false)
 	, m_checkedExists(false)
 	, m_isDirectory(false)
@@ -19,7 +65,7 @@ FilePath::FilePath()
 }
 
 FilePath::FilePath(const std::string& filePath)
-	: m_path(std::make_unique<boost::filesystem::path>(filePath))
+	: m_path(std::make_unique<std::filesystem::path>(filePath))
 	, m_exists(false)
 	, m_checkedExists(false)
 	, m_isDirectory(false)
@@ -29,7 +75,7 @@ FilePath::FilePath(const std::string& filePath)
 }
 
 FilePath::FilePath(const std::wstring& filePath)
-	: m_path(std::make_unique<boost::filesystem::path>(filePath))
+	: m_path(std::make_unique<std::filesystem::path>(filePath))
 	, m_exists(false)
 	, m_checkedExists(false)
 	, m_isDirectory(false)
@@ -39,7 +85,7 @@ FilePath::FilePath(const std::wstring& filePath)
 }
 
 FilePath::FilePath(const FilePath& other)
-	: m_path(std::make_unique<boost::filesystem::path>(other.getPath()))
+	: m_path(std::make_unique<std::filesystem::path>(other.getPath()))
 	, m_exists(other.m_exists)
 	, m_checkedExists(other.m_checkedExists)
 	, m_isDirectory(other.m_isDirectory)
@@ -59,7 +105,7 @@ FilePath::FilePath(FilePath&& other)
 }
 
 FilePath::FilePath(const std::wstring& filePath, const std::wstring& base)
-	: m_path(std::make_unique<boost::filesystem::path>(boost::filesystem::absolute(filePath, base)))
+	: m_path(std::make_unique<std::filesystem::path>(std::filesystem::absolute(std::filesystem::path(base) / std::filesystem::path(filePath))))
 	, m_exists(false)
 	, m_checkedExists(false)
 	, m_isDirectory(false)
@@ -70,7 +116,7 @@ FilePath::FilePath(const std::wstring& filePath, const std::wstring& base)
 
 FilePath::~FilePath() {}
 
-boost::filesystem::path FilePath::getPath() const
+std::filesystem::path FilePath::getPath() const
 {
 	return *(m_path.get());
 }
@@ -84,7 +130,7 @@ bool FilePath::exists() const noexcept
 {
 	if (!m_checkedExists)
 	{
-		m_exists = boost::filesystem::exists(getPath());
+		m_exists = std::filesystem::exists(getPath());
 		m_checkedExists = true;
 	}
 
@@ -101,7 +147,7 @@ bool FilePath::isDirectory() const
 {
 	if (!m_checkedIsDirectory)
 	{
-		m_isDirectory = boost::filesystem::is_directory(getPath());
+		m_isDirectory = std::filesystem::is_directory(getPath());
 		m_checkedIsDirectory = true;
 	}
 
@@ -115,7 +161,7 @@ bool FilePath::isAbsolute() const
 
 bool FilePath::isValid() const
 {
-	boost::filesystem::path::iterator it = m_path->begin();
+	std::filesystem::path::iterator it = m_path->begin();
 
 	if (isAbsolute() && m_path->has_root_path())
 	{
@@ -130,7 +176,7 @@ bool FilePath::isValid() const
 
 	for (; it != m_path->end(); ++it)
 	{
-		if (!boost::filesystem::windows_name(it->string()))
+		if (!isValidWindowsName(it->string()))
 		{
 			return false;
 		}
@@ -160,7 +206,7 @@ FilePath FilePath::getParentDirectory() const
 
 FilePath& FilePath::makeAbsolute()
 {
-	m_path = std::make_unique<boost::filesystem::path>(boost::filesystem::absolute(getPath()));
+	m_path = std::make_unique<std::filesystem::path>(std::filesystem::absolute(getPath()));
 	return *this;
 }
 
@@ -178,12 +224,12 @@ FilePath& FilePath::makeCanonical()
 		return *this;
 	}
 
-	boost::filesystem::path canonicalPath;
+	std::filesystem::path canonicalPath;
 
 #if defined(_WIN32)
-	boost::filesystem::path abs_p = boost::filesystem::absolute(getPath());
+	std::filesystem::path abs_p = std::filesystem::absolute(getPath());
 
-	boost::filesystem::path::iterator it = abs_p.begin();
+	std::filesystem::path::iterator it = abs_p.begin();
 
 	// add first element before loop because this won't be recognized as absolute path yet
 	canonicalPath /= *it;
@@ -203,9 +249,9 @@ FilePath& FilePath::makeCanonical()
 		{
 			canonicalPath /= *it;
 
-			if (boost::filesystem::is_symlink(boost::filesystem::symlink_status(canonicalPath)))
+			if (std::filesystem::is_symlink(std::filesystem::symlink_status(canonicalPath)))
 			{
-				boost::filesystem::path symlink = boost::filesystem::read_symlink(canonicalPath);
+				std::filesystem::path symlink = std::filesystem::read_symlink(canonicalPath);
 				if (!symlink.empty())
 				{
 					// on Windows the read_symlink function discards the drive letter (this is a
@@ -213,7 +259,7 @@ FilePath& FilePath::makeCanonical()
 					// to discard the trailing \0 characters so that we can continue appending to
 					// the path.
 					canonicalPath = utility::substrBeforeFirst(
-						boost::filesystem::absolute(symlink).string(), '\0');
+						std::filesystem::absolute(symlink).string(), '\0');
 				}
 			}
 		}
@@ -221,15 +267,15 @@ FilePath& FilePath::makeCanonical()
 #else
 	try
 	{
-		canonicalPath = boost::filesystem::canonical(getPath());
+		canonicalPath = std::filesystem::canonical(getPath());
 	}
-	catch (boost::filesystem::filesystem_error e)
+	catch (const std::filesystem::filesystem_error& e)
 	{
 		LOG_ERROR_STREAM(<< e.what());
 		return *this;
 	}
 #endif
-	m_path = std::make_unique<boost::filesystem::path>(canonicalPath);
+	m_path = std::make_unique<std::filesystem::path>(canonicalPath);
 	m_canonicalized = true;
 	return *this;
 }
@@ -282,16 +328,16 @@ std::vector<FilePath> FilePath::expandEnvironmentVariables() const
 
 FilePath& FilePath::makeRelativeTo(const FilePath& other)
 {
-	const boost::filesystem::path a = this->getCanonical().getPath();
-	const boost::filesystem::path b = other.getCanonical().getPath();
+	const std::filesystem::path a = this->getCanonical().getPath();
+	const std::filesystem::path b = other.getCanonical().getPath();
 
 	if (a.root_path() != b.root_path())
 	{
 		return *this;
 	}
 
-	boost::filesystem::path::const_iterator itA = a.begin();
-	boost::filesystem::path::const_iterator itB = b.begin();
+	std::filesystem::path::const_iterator itA = a.begin();
+	std::filesystem::path::const_iterator itB = b.begin();
 
 	while (*itA == *itB && itA != a.end() && itB != b.end())
 	{
@@ -299,11 +345,11 @@ FilePath& FilePath::makeRelativeTo(const FilePath& other)
 		itB++;
 	}
 
-	boost::filesystem::path r;
+	std::filesystem::path r;
 
 	if (itB != b.end())
 	{
-		if (!boost::filesystem::is_directory(b))
+		if (!std::filesystem::is_directory(b))
 		{
 			itB++;
 		}
@@ -324,7 +370,7 @@ FilePath& FilePath::makeRelativeTo(const FilePath& other)
 		r = "./";
 	}
 
-	m_path = std::make_unique<boost::filesystem::path>(r);
+	m_path = std::make_unique<std::filesystem::path>(r);
 	return *this;
 }
 
@@ -386,8 +432,8 @@ bool FilePath::contains(const FilePath& other) const
 		return false;
 	}
 
-	boost::filesystem::path dir = getPath();
-	const std::unique_ptr<boost::filesystem::path>& dir2 = other.m_path;
+	std::filesystem::path dir = getPath();
+	const std::unique_ptr<std::filesystem::path>& dir2 = other.m_path;
 
 	if (dir.filename() == ".")
 	{
@@ -461,7 +507,7 @@ bool FilePath::hasExtension(const std::vector<std::wstring>& extensions) const
 
 FilePath& FilePath::operator=(const FilePath& other)
 {
-	m_path = std::make_unique<boost::filesystem::path>(other.getPath());
+	m_path = std::make_unique<std::filesystem::path>(other.getPath());
 	m_exists = other.m_exists;
 	m_checkedExists = other.m_checkedExists;
 	m_isDirectory = other.m_isDirectory;
@@ -485,7 +531,7 @@ bool FilePath::operator==(const FilePath& other) const
 {
 	if (exists() && other.exists())
 	{
-		return boost::filesystem::equivalent(getPath(), other.getPath());
+		return std::filesystem::equivalent(getPath(), other.getPath());
 	}
 
 	return m_path->compare(other.getPath()) == 0;

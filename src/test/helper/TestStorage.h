@@ -1,7 +1,7 @@
 #ifndef TEST_STORAGE_H
 #define TEST_STORAGE_H
 
-#include <boost/filesystem.hpp>
+#include <filesystem>
 
 #include "AccessKind.h"
 #include "Edge.h"

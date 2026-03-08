@@ -73,15 +73,15 @@ WORKDIR /opt
 
 # Boost
 ARG BOOST_MAJOR=1
-ARG BOOST_MINOR=67
+ARG BOOST_MINOR=89
 ARG BOOST_PATCH=0
 ENV BOOST_VERSION=${BOOST_MAJOR}.${BOOST_MINOR}.${BOOST_PATCH} \
 BOOST_VERSION_UNDERSCORE=${BOOST_MAJOR}_${BOOST_MINOR}_${BOOST_PATCH}
 
 RUN wget http://downloads.sourceforge.net/project/boost/boost/${BOOST_VERSION}/boost_${BOOST_VERSION_UNDERSCORE}.tar.gz && \
 tar -xzf boost_${BOOST_VERSION_UNDERSCORE}.tar.gz && cd boost_${BOOST_VERSION_UNDERSCORE} && \
-./bootstrap.sh --with-libraries=filesystem,program_options,system,date_time --prefix=/opt/boost && \
-./b2 install cxxstd=14 --link=static --variant=release --threading=multi --runtime-link=static --cxxflags="-std=c++14 -fPIC" && \
+./bootstrap.sh --with-libraries=program_options,date_time,locale --prefix=/opt/boost && \
+./b2 install cxxstd=17 --link=static --variant=release --threading=multi --runtime-link=static --cxxflags="-std=c++17 -fPIC" && \
 cd .. && rm boost_${BOOST_VERSION_UNDERSCORE}.tar.gz && rm boost_${BOOST_VERSION_UNDERSCORE} -r
 
 # linuxdeployqt

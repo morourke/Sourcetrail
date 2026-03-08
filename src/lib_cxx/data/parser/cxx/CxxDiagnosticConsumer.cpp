@@ -1,6 +1,7 @@
 #include "CxxDiagnosticConsumer.h"
 
 #include <clang/Basic/SourceManager.h>
+#include <clang/Basic/Version.h>
 #include <clang/Tooling/Tooling.h>
 
 #include "CanonicalFilePathCache.h"
@@ -9,6 +10,22 @@
 #include "utilityClang.h"
 #include "utilityString.h"
 
+#if CLANG_VERSION_MAJOR >= 20
+CxxDiagnosticConsumer::CxxDiagnosticConsumer(
+	clang::raw_ostream& os,
+	clang::DiagnosticOptions& diags,
+	std::shared_ptr<ParserClient> client,
+	std::shared_ptr<CanonicalFilePathCache> canonicalFilePathCache,
+	const FilePath& sourceFilePath,
+	bool useLogging)
+	: clang::TextDiagnosticPrinter(os, diags)
+	, m_client(client)
+	, m_canonicalFilePathCache(canonicalFilePathCache)
+	, m_sourceFilePath(sourceFilePath)
+	, m_useLogging(useLogging)
+{
+}
+#else
 CxxDiagnosticConsumer::CxxDiagnosticConsumer(
 	clang::raw_ostream& os,
 	clang::DiagnosticOptions* diags,
@@ -23,6 +40,7 @@ CxxDiagnosticConsumer::CxxDiagnosticConsumer(
 	, m_useLogging(useLogging)
 {
 }
+#endif
 
 void CxxDiagnosticConsumer::BeginSourceFile(
 	const clang::LangOptions& langOptions, const clang::Preprocessor* preProcessor)
@@ -83,7 +101,11 @@ void CxxDiagnosticConsumer::HandleDiagnostic(
 			clang::FileID clangFileId = sourceManager.getFileID(loc);
 			const clang::FileEntry* fileEntry = sourceManager.getFileEntryForID(clangFileId);
 
+#if CLANG_VERSION_MAJOR >= 16
+			if (fileEntry != nullptr)
+#else
 			if (fileEntry != nullptr && fileEntry->isValid())
+#endif
 			{
 				ParseLocation location = utility::getParseLocation(
 					loc, sourceManager, nullptr, m_canonicalFilePathCache);
@@ -95,7 +117,11 @@ void CxxDiagnosticConsumer::HandleDiagnostic(
 			else
 			{
 				fileEntry = sourceManager.getFileEntryForID(sourceManager.getMainFileID());
+#if CLANG_VERSION_MAJOR >= 16
+				if (fileEntry != nullptr)
+#else
 				if (fileEntry != nullptr && fileEntry->isValid())
+#endif
 				{
 					filePath = m_canonicalFilePathCache->getCanonicalFilePath(fileEntry);
 					fileId = m_client->recordFile(

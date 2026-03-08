@@ -1,17 +1,10 @@
 #ifndef FILE_PATH_H
 #define FILE_PATH_H
 
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
-
-namespace boost
-{
-namespace filesystem
-{
-class path;
-}
-}	 // namespace boost
 
 class FilePath
 {
@@ -24,7 +17,7 @@ public:
 	FilePath(const std::wstring& filePath, const std::wstring& base);
 	~FilePath();
 
-	boost::filesystem::path getPath() const;
+	std::filesystem::path getPath() const;
 
 	bool empty() const;
 	bool exists() const noexcept;
@@ -66,7 +59,7 @@ public:
 	bool operator<(const FilePath& other) const;
 
 private:
-	std::unique_ptr<boost::filesystem::path> m_path;
+	std::unique_ptr<std::filesystem::path> m_path;
 
 	mutable bool m_exists;
 	mutable bool m_checkedExists;
