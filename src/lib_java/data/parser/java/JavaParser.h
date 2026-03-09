@@ -1,6 +1,7 @@
 #ifndef JAVA_PARSER_H
 #define JAVA_PARSER_H
 
+#include <atomic>
 #include <map>
 #include <mutex>
 #include <string>
@@ -246,7 +247,7 @@ private:
 		return false;
 	}
 
-	static int s_nextParserId;
+	static std::atomic<int> s_nextParserId;
 	static std::map<int, JavaParser*> s_parsers;
 	static std::mutex s_parsersMutex;
 

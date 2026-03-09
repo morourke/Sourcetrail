@@ -1,15 +1,14 @@
 #ifndef SHARED_MEMORY_GARBAGE_COLLECTOR_H
 #define SHARED_MEMORY_GARBAGE_COLLECTOR_H
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <set>
 #include <string>
+#include <thread>
 
 #include "SharedMemory.h"
-
-#include <mutex>
-#include <thread>
 
 class SharedMemoryGarbageCollector
 {
@@ -40,7 +39,7 @@ private:
 	static std::shared_ptr<SharedMemoryGarbageCollector> s_instance;
 
 	SharedMemory m_memory;
-	volatile bool m_loopIsRunning;
+	std::atomic<bool> m_loopIsRunning;
 	std::shared_ptr<std::thread> m_thread;
 
 	std::string m_uuid;

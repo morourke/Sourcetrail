@@ -1,6 +1,7 @@
 #ifndef MESSAGE_QUEUE_H
 #define MESSAGE_QUEUE_H
 
+#include <condition_variable>
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -41,8 +42,6 @@ public:
 	void setSendMessagesAsTasks(bool sendMessagesAsTasks);
 
 private:
-	static std::shared_ptr<MessageQueue> s_instance;
-
 	MessageQueue();
 	MessageQueue(const MessageQueue&) = delete;
 	void operator=(const MessageQueue&) = delete;
@@ -65,6 +64,11 @@ private:
 	mutable std::mutex m_listenersMutex;
 	mutable std::mutex m_loopMutex;
 	mutable std::mutex m_threadMutex;
+
+	std::condition_variable m_wakeupCV;
+	std::mutex m_wakeupMutex;
+	bool m_wakeupFlag;
+	std::condition_variable m_threadStoppedCV;
 
 	bool m_sendMessagesAsTasks;
 };

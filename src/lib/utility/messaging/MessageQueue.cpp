@@ -1,5 +1,6 @@
 #include "MessageQueue.h"
 
+#include <algorithm>
 #include <chrono>
 #include <thread>
 
@@ -14,11 +15,9 @@
 
 std::shared_ptr<MessageQueue> MessageQueue::getInstance()
 {
-	if (!s_instance)
-	{
-		s_instance = std::shared_ptr<MessageQueue>(new MessageQueue());
-	}
-	return s_instance;
+	// Static local: guaranteed thread-safe initialization in C++11+ (no race on first call)
+	static std::shared_ptr<MessageQueue> instance(new MessageQueue());
+	return instance;
 }
 
 MessageQueue::~MessageQueue()
@@ -85,8 +84,15 @@ void MessageQueue::addMessageFilter(std::shared_ptr<MessageFilter> filter)
 
 void MessageQueue::pushMessage(std::shared_ptr<MessageBase> message)
 {
-	std::lock_guard<std::mutex> lock(m_messageBufferMutex);
-	m_messageBuffer.push_back(message);
+	{
+		std::lock_guard<std::mutex> lock(m_messageBufferMutex);
+		m_messageBuffer.push_back(message);
+	}
+	{
+		std::lock_guard<std::mutex> lock(m_wakeupMutex);
+		m_wakeupFlag = true;
+	}
+	m_wakeupCV.notify_one();
 }
 
 void MessageQueue::processMessage(std::shared_ptr<MessageBase> message, bool asNextTask)
@@ -141,16 +147,19 @@ void MessageQueue::startMessageLoop()
 			}
 		}
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(25));
+		{
+			std::unique_lock<std::mutex> lock(m_wakeupMutex);
+			m_wakeupCV.wait_for(
+				lock, std::chrono::milliseconds(25), [this] { return m_wakeupFlag; });
+			m_wakeupFlag = false;
+		}
 	}
 
 	{
 		std::lock_guard<std::mutex> lock(m_threadMutex);
-		if (m_threadIsRunning)
-		{
-			m_threadIsRunning = false;
-		}
+		m_threadIsRunning = false;
 	}
+	m_threadStoppedCV.notify_all();
 }
 
 void MessageQueue::stopMessageLoop()
@@ -166,17 +175,15 @@ void MessageQueue::stopMessageLoop()
 		m_loopIsRunning = false;
 	}
 
-	while (true)
 	{
-		{
-			std::lock_guard<std::mutex> lock(m_threadMutex);
-			if (!m_threadIsRunning)
-			{
-				break;
-			}
-		}
+		std::lock_guard<std::mutex> lock(m_wakeupMutex);
+		m_wakeupFlag = true;
+	}
+	m_wakeupCV.notify_all();
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(25));
+	{
+		std::unique_lock<std::mutex> lock(m_threadMutex);
+		m_threadStoppedCV.wait(lock, [this] { return !m_threadIsRunning; });
 	}
 }
 
@@ -197,7 +204,6 @@ void MessageQueue::setSendMessagesAsTasks(bool sendMessagesAsTasks)
 	m_sendMessagesAsTasks = sendMessagesAsTasks;
 }
 
-std::shared_ptr<MessageQueue> MessageQueue::s_instance;
 
 MessageQueue::MessageQueue()
 	: m_currentListenerIndex(0)
@@ -205,6 +211,7 @@ MessageQueue::MessageQueue()
 	, m_loopIsRunning(false)
 	, m_threadIsRunning(false)
 	, m_sendMessagesAsTasks(false)
+	, m_wakeupFlag(false)
 {
 }
 
@@ -241,28 +248,37 @@ void MessageQueue::processMessages()
 
 void MessageQueue::sendMessage(std::shared_ptr<MessageBase> message)
 {
-	std::lock_guard<std::mutex> lock(m_listenersMutex);
-
-	// m_listenersLength is saved, so that new listeners registered within message handling don't
-	// get the current message and the length can be reduced when a listener gets unregistered.
-	m_listenersLength = m_listeners.size();
-
-	// The currentListenerIndex holds the index of the current listener being handled, so it can be
-	// changed when a listener gets removed while message handling.
-	for (m_currentListenerIndex = 0; m_currentListenerIndex < m_listenersLength;
-		 m_currentListenerIndex++)
+	// Snapshot matching listeners under the lock so we never call external code while holding it.
+	// This prevents use-after-free when a listener unregisters (and is destroyed) during dispatch.
+	std::vector<MessageListenerBase*> matching;
 	{
-		MessageListenerBase* listener = m_listeners[m_currentListenerIndex];
-
-		if (listener->getType() == message->getType() &&
-			(message->getSchedulerId() == 0 || listener->getSchedulerId() == 0 ||
-			 listener->getSchedulerId() == message->getSchedulerId()))
+		std::lock_guard<std::mutex> lock(m_listenersMutex);
+		m_listenersLength = m_listeners.size();
+		for (m_currentListenerIndex = 0; m_currentListenerIndex < m_listenersLength;
+			 m_currentListenerIndex++)
 		{
-			// The listenersMutex gets unlocked so changes to listeners are possible while message handling.
-			m_listenersMutex.unlock();
-			listener->handleMessageBase(message.get());
-			m_listenersMutex.lock();
+			MessageListenerBase* listener = m_listeners[m_currentListenerIndex];
+			if (listener->getType() == message->getType() &&
+				(message->getSchedulerId() == 0 || listener->getSchedulerId() == 0 ||
+				 listener->getSchedulerId() == message->getSchedulerId()))
+			{
+				matching.push_back(listener);
+			}
 		}
+	}
+
+	for (MessageListenerBase* listener: matching)
+	{
+		// Re-check that the listener is still registered before dispatching; it may have
+		// unregistered (and been destroyed) between the snapshot and now.
+		{
+			std::lock_guard<std::mutex> lock(m_listenersMutex);
+			if (std::find(m_listeners.begin(), m_listeners.end(), listener) == m_listeners.end())
+			{
+				continue;
+			}
+		}
+		listener->handleMessageBase(message.get());
 	}
 }
 

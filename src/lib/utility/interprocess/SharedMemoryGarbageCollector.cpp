@@ -17,6 +17,9 @@ std::shared_ptr<SharedMemoryGarbageCollector> SharedMemoryGarbageCollector::s_in
 
 SharedMemoryGarbageCollector* SharedMemoryGarbageCollector::createInstance()
 {
+	static std::mutex s_createMutex;
+	std::lock_guard<std::mutex> lock(s_createMutex);
+
 	try
 	{
 		if (!s_instance)
